@@ -4,6 +4,7 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.PosixFilePermissions
 import java.util.Date
 
 import scala.concurrent.duration.DurationLong
@@ -90,14 +91,15 @@ class JobRunnerSrv @Inject() (
     }
 
   private def prepareJobFolder(worker: Worker, job: Job): Future[Path] = {
-    val jobFolder      = Files.createTempDirectory(jobDirectory, s"cortex-job-${job.id}-")
-    val inputJobFolder = Files.createDirectories(jobFolder.resolve("input"))
-    Files.createDirectories(jobFolder.resolve("output"))
+    val groupAccess    = PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxrwx---"))
+    val jobFolder      = Files.createTempDirectory(jobDirectory, s"cortex-job-${job.id}-", groupAccess)
+    val inputJobFolder = Files.createDirectories(jobFolder.resolve("input"), groupAccess)
+    Files.createDirectories(jobFolder.resolve("output"), groupAccess)
 
     job
       .attachment()
       .map { attachment =>
-        val attachmentFile = Files.createTempFile(inputJobFolder, "attachment", "")
+        val attachmentFile = Files.createTempFile(inputJobFolder, "attachment", "", groupAccess)
         attachmentSrv
           .source(attachment.id)
           .runWith(FileIO.toPath(attachmentFile))
